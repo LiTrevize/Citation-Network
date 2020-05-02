@@ -5,6 +5,7 @@ out/
 *.csv
 *.gexf
 data/info.py
+*test.py
 
 # Compiled class file
 *.class
