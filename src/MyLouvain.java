@@ -10,21 +10,23 @@ public class MyLouvain {
         int k_i; // sum of edge weight of all its neighbors
         int community;
         List<Node> neighbors;
+        List<Integer> weights;
 
         Node(int id) {
             this.id = id;
             this.community = id;
             neighbors = new ArrayList<>();
+            weights = new ArrayList<>();
         }
 
-        int num_in(int c) {
-            int ans = 0;
-            for (Node node : neighbors) {
-                if (node.community == c)
-                    ans++;
+        int get_weight(Node node) {
+            for (int i = 0; i < neighbors.size(); i++) {
+                if (neighbors.get(i) == node)
+                    return weights.get(i);
             }
-            return ans;
+            return 0;
         }
+
     }
 
     private class Community {
@@ -81,8 +83,7 @@ public class MyLouvain {
             for (Node q : nodes) {
                 if (p != q && p.community == q.community) {
                     double tmp = 0;
-                    tmp -= (double) p.neighbors.size() * q.neighbors.size() / num_edges / 2;
-                    if (p.neighbors.contains(q)) tmp += 1;
+                    tmp += p.get_weight(q) - (double) p.neighbors.size() * q.neighbors.size() / num_edges / 2;
                     ans += tmp / num_edges / 2;
                 }
             }
@@ -98,9 +99,11 @@ public class MyLouvain {
             flag = false;
             for (Node node : nodes) {
                 Map<Integer, Integer> c2w = new HashMap<>();
-                for (Node nei : node.neighbors) {
+                for (int i = 0; i < node.neighbors.size(); i++) {
+                    Node nei = node.neighbors.get(i);
+                    int w = node.weights.get(i);
                     if (node.community != nei.community) {
-                        c2w.put(nei.community, c2w.getOrDefault(nei.community, 0) + 1);
+                        c2w.put(nei.community, c2w.getOrDefault(nei.community, 0) + w);
                     }
                 }
                 double dq = 0;
@@ -150,7 +153,8 @@ public class MyLouvain {
 
     private void init_parameters() {
         for (Node node : nodes) {
-            node.k_i = node.neighbors.size();
+            node.k_i = 0;
+            for (int w : node.weights) node.k_i += w;
             communities.put(node.id, new Community(node.id, node.k_i));
         }
     }
@@ -195,8 +199,11 @@ public class MyLouvain {
                     String[] p = line.split("\t");
                     int src = Integer.parseInt(p[0]);
                     int tar = Integer.parseInt(p[1]);
+                    int w = p.length > 2 ? Integer.parseInt(p[2]) : 1;
                     tmp.get(src).neighbors.add(tmp.get(tar));
+                    tmp.get(src).weights.add(w);
                     tmp.get(tar).neighbors.add(tmp.get(src));
+                    tmp.get(tar).weights.add(w);
                 }
                 bufferedReader.close();
                 read.close();
