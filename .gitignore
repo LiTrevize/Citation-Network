@@ -1,3 +1,11 @@
+.idea/
+out/
+*__pycache__/
+*.pkl
+*.csv
+*.gexf
+data/info.py
+
 # Compiled class file
 *.class
 
