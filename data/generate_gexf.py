@@ -46,7 +46,7 @@ def gexf_from_csv(node_csv, edge_csv):
             node = graph.addNode(str(idx), title)
             # node.addAttribute(attr_dblp, 'true')
             if i % 10000 == 0:
-                print('\r{:.2f}%'.format(i*100/tot), end='')
+                print('\r{:.2f}%'.format(i * 100 / tot), end='')
         print()
 
     print('adding edges...')
@@ -58,7 +58,7 @@ def gexf_from_csv(node_csv, edge_csv):
             graph.addEdge(str(num_edge), str(src), str(tar))
             num_edge += 1
             if i % 10000 == 0:
-                print('\r{:.2f}%'.format(i*100/tot), end='')
+                print('\r{:.2f}%'.format(i * 100 / tot), end='')
         print()
 
     print('writing to file...')
@@ -71,4 +71,5 @@ if __name__ == "__main__":
     # gen_edge_csv('edge_dblp_only.csv')
     # gen_node_csv('node_dblp_full.csv', False)
     # gen_edge_csv('edge_dblp_full.csv', False)
-    gexf_from_csv('node_dblp_only.csv','edge_dblp_only.csv')
+    # gexf_from_csv('node_dblp_only.csv','edge_dblp_only.csv')
+    pass
