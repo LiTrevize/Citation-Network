@@ -1,3 +1,5 @@
+import javafx.util.Pair;
+
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -9,7 +11,7 @@ public class MyLouvain {
     private class Node {
         int id;
         int k_i; // sum of edge weight of all its neighbors, including self-loop
-        int community;
+        int cid;
         int size; // for super-node, size is the number of atomic node
         int loop;
         List<Node> neighbors;
@@ -17,7 +19,7 @@ public class MyLouvain {
 
         Node(int id) {
             this.id = id;
-            this.community = id;
+            this.cid = id;
             neighbors = new ArrayList<>();
             weights = new ArrayList<>();
             size = 1;
@@ -34,7 +36,7 @@ public class MyLouvain {
 
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append(id).append(" ").append(community);
+            sb.append(id).append(" ").append(cid);
             sb.append(" [");
             for (Node node : neighbors) sb.append(node.id).append(" ");
             sb.append("]");
@@ -49,9 +51,9 @@ public class MyLouvain {
         int sum_tot;
         int size;
 
-        Community(int id, int val) {
+        Community(int id, int val, int size) {
             this.id = id;
-            this.size = 1;
+            this.size = size;
             sum_tot = val;
         }
 
@@ -61,18 +63,211 @@ public class MyLouvain {
         }
     }
 
+    private String nodeCsv, edgeCsv;
+
     private List<Node> nodes;
     private List<Node> nodes_default;
     private Map<Integer, Community> communities; // community_id -> sum_tot: sum of k_i for all nodes in c
     private int num_edges; // sum of weights of all the edges <=> number of edges for the original network
 
-    public MyLouvain(int capacity, String nodeCsv, String edgeCsv) {
-        nodes = new ArrayList<>(capacity);
-        communities = new HashMap<>(capacity);
+    private int MAX_COMMUNITY_SIZE = -1;
 
+    public MyLouvain(String nodeCsv, String edgeCsv) {
+        this.nodeCsv = nodeCsv;
+        this.edgeCsv = edgeCsv;
+
+        allocate(nodeCsv, edgeCsv);
         from_csv(nodeCsv, edgeCsv);
 
         init_parameters();
+    }
+
+    private void allocate(String nodeCsv, String edgeCsv) {
+        nodes = new ArrayList<>();
+        communities = new HashMap<>();
+    }
+
+    public void saveMegaGraph(String dirName) {
+        // check for output directory
+        File dir = new File(dirName);
+        if (dir.isDirectory()) dir.delete();
+        dir.mkdir();
+
+        try {
+            File nodeFile = new File(dirName + "/mega_node.csv");
+            nodeFile.createNewFile();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(nodeFile));
+            for (Community c : communities.values())
+                writer.write("" + c.id + "\t" + c.size + "\n");
+            writer.flush();
+            writer.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            File edgeFile = new File(dirName + "/mega_edge.csv");
+            edgeFile.createNewFile();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(edgeFile));
+            for (Node node : nodes) {
+                for (int i = 0; i < node.neighbors.size(); i++) {
+                    writer.write("" + communities.get(node.cid).id + "\t" +
+                            communities.get(node.neighbors.get(i).cid).id + "\t" + node.weights.get(i) + "\n");
+                }
+            }
+
+            writer.flush();
+            writer.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public void ensureOneNodeCommunityID() {
+        // non-consistent pairs
+        Map<Integer, Integer> cid2nid = new HashMap<>(communities.size());
+        for (Node node : nodes_default) {
+            if (communities.get(node.cid).size == 1 && communities.get(node.cid).id != node.id)
+                cid2nid.put(node.cid, node.id);
+        }
+        System.out.println(cid2nid.size());
+
+        int nextID = 0;
+        for (Map.Entry<Integer, Integer> e : cid2nid.entrySet()) {
+            int cid = e.getKey();
+            int nid = e.getValue();
+            if (!cid2nid.containsKey(nid) && communities.containsKey(nid)) { // assign new cid for original nid
+                while (communities.containsKey(nextID) || cid2nid.containsValue(nextID)) nextID++;
+                communities.get(nid).id = nextID;
+                nextID++;
+            }
+            // modify one-node community id
+            communities.get(cid).id = nid;
+        }
+    }
+
+    public void saveCommunityPartition(String filePath) {
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter(filePath));
+            for (Node node : nodes_default)
+                writer.write("" + node.id + "\t" + communities.get(node.cid).id + "\n");
+
+            writer.flush();
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void partitionAndSaveTo(String dirName) {
+        System.out.println("Partitioning and saving to " + dirName + "...");
+
+        // check for output directory
+        File dir = new File(dirName);
+        if (dir.isDirectory()) dir.delete();
+        dir.mkdir();
+
+        Map<Integer, Integer> node2com = new HashMap<>(nodes_default.size());
+        for (Node node : nodes_default) node2com.put(node.id, node.cid);
+
+        //
+        Map<Integer, List<Pair<Integer, Integer>>> cid2edge = new HashMap<>(communities.size());
+        for (int cid : communities.keySet()) {
+            cid2edge.put(cid, new ArrayList<>());
+        }
+        try {
+            // select from edge files
+            File eFile = new File(edgeCsv);
+            InputStreamReader read = new InputStreamReader(
+                    new FileInputStream(eFile), "utf8");
+            BufferedReader bufferedReader = new BufferedReader(read);
+            String line = null;
+
+            while ((line = bufferedReader.readLine()) != null) {
+                String[] p = line.split("\t");
+                int src = Integer.parseInt(p[0]);
+                int tar = Integer.parseInt(p[1]);
+                if (node2com.get(src).equals(node2com.get(tar))) {
+                    cid2edge.get(node2com.get(src)).add(new Pair<>(src, tar));
+                }
+            }
+            bufferedReader.close();
+            read.close();
+
+
+            // open out file
+            for (Map.Entry<Integer, List<Pair<Integer, Integer>>> entry : cid2edge.entrySet()) {
+                int cid = entry.getKey();
+                if (entry.getValue().size() == 0) continue;
+                File f = new File(dirName + "/" + communities.get(cid).id + ".csv");
+                f.createNewFile();
+                BufferedWriter writer = new BufferedWriter(new FileWriter(f));
+
+                for (Pair<Integer, Integer> p : entry.getValue()) {
+                    writer.write("" + p.getKey() + "\t" + p.getValue() + "\n");
+                }
+                // flush and close
+                writer.flush();
+                writer.close();
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+    }
+
+    public void saveCommunityExternalEdges(String dirName) {
+        System.out.println("Saving out edges to " + dirName + "...");
+
+        // check for output directory
+        File dir = new File(dirName);
+        if (dir.isDirectory()) dir.delete();
+        dir.mkdir();
+
+        Map<Integer, Map<Pair<Integer, Integer>, Integer>> cid2edge = new HashMap<>(communities.size());
+
+        for (int cid : communities.keySet()) {
+            cid2edge.put(cid, new HashMap<>());
+        }
+        for (Node node : nodes_default) {
+            for (Node nei : node.neighbors) {
+                if (node.cid != nei.cid) {
+                    Pair<Integer, Integer> p = new Pair<>(node.id, nei.cid);
+                    Map<Pair<Integer, Integer>, Integer> edges = cid2edge.get(node.cid);
+                    edges.put(p, edges.getOrDefault(p, 0) + 1);
+                }
+            }
+        }
+        try {
+            // select from nodes_default
+
+            for (Map.Entry<Integer, Map<Pair<Integer, Integer>, Integer>> entry : cid2edge.entrySet()) {
+                int cid = entry.getKey();
+                Map<Pair<Integer, Integer>, Integer> edges = entry.getValue();
+
+                // open out file
+                File f = new File(dirName + "/" + cid + ".csv");
+                f.createNewFile();
+                BufferedWriter writer = new BufferedWriter(new FileWriter(f));
+
+                for (Map.Entry<Pair<Integer, Integer>, Integer> e : edges.entrySet()) {
+                    writer.write("" + e.getKey().getKey() + "\t" + e.getKey().getValue() + "\t" + e.getValue() + "\n");
+                }
+
+                // flush and close
+                writer.flush();
+                writer.close();
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
     public void execute() {
@@ -82,25 +277,29 @@ public class MyLouvain {
 
         firstPhase();
         nodes_default = nodes;
+//        logTo("log/round0.csv");
         secondPhase();
 
+        int round = 0;
         while (firstPhase()) {
-            updateNodeDefault();
+            round++;
+            updateNodesDefault();
+//            logTo("log/round" + round + ".csv");
             secondPhase();
         }
 
         System.out.println("Finished at " + sdf.format(new Date()));
-        writeTo("phase1.csv");
+
     }
 
-    public void writeTo(String filePath) {
+    public void logTo(String filePath) {
         try {
             System.out.println("Writing to " + filePath + " ...");
             File file = new File(filePath);
             file.createNewFile();
             BufferedWriter out = new BufferedWriter(new FileWriter(file));
             for (Node node : nodes_default) {
-                out.write(node.id + "\t" + node.community + "\n");
+                out.write(node.id + "\t" + node.cid + "\n");
             }
 
             out.flush();
@@ -111,15 +310,12 @@ public class MyLouvain {
 
     }
 
-    private void updateNodeDefault() {
+    private void updateNodesDefault() {
+        System.out.println("Updating nodes default...");
+        Map<Integer, Integer> cc = new HashMap<>();
+        for (Node superNode : nodes) cc.put(superNode.id, superNode.cid);
         for (Node node : nodes_default) {
-            if (!communities.containsKey(node.community)) {
-                for (Node superNode : nodes) {
-                    if (superNode.id == node.community) {
-                        node.community = superNode.community;
-                    }
-                }
-            }
+            node.cid = cc.get(node.cid);
         }
     }
 
@@ -132,16 +328,16 @@ public class MyLouvain {
         for (Map.Entry<Integer, Community> entry : communities.entrySet()) {
             Node superNode = new Node(entry.getKey());
             superNode.k_i = entry.getValue().sum_tot;
-            superNode.community = entry.getKey();
+            superNode.cid = entry.getKey();
             superNode.size = entry.getValue().size;
             nodes.add(superNode);
             id2node.put(entry.getKey(), superNode);
         }
         // update neighbors and weights
         for (Node node : nodes_old) {
-            Node superNode = id2node.get(node.community);
+            Node superNode = id2node.get(node.cid);
             for (int i = 0; i < node.neighbors.size(); i++) {
-                Node superNei = id2node.get(node.neighbors.get(i).community);
+                Node superNei = id2node.get(node.neighbors.get(i).cid);
                 if (superNode == superNei) continue;
                 int idx = superNode.neighbors.indexOf(superNei);
                 if (idx >= 0) {
@@ -164,7 +360,7 @@ public class MyLouvain {
         double ans = 0;
         for (Node p : nodes) {
             for (Node q : nodes) {
-                if (p != q && p.community == q.community) {
+                if (p != q && p.cid == q.cid) {
                     double tmp = 0;
                     tmp += p.get_weight(q) - (double) p.k_i * q.k_i / num_edges / 2;
                     ans += tmp / num_edges / 2;
@@ -200,8 +396,8 @@ public class MyLouvain {
                     Node nei = node.neighbors.get(i);
                     int w = node.weights.get(i);
                     // path reduce
-                    if (node.community != nei.community) {
-                        c2w.put(nei.community, c2w.getOrDefault(nei.community, 0) + w);
+                    if (node.cid != nei.cid) {
+                        c2w.put(nei.cid, c2w.getOrDefault(nei.cid, 0) + w);
                     }
                 }
                 double dq = 0;
@@ -215,20 +411,20 @@ public class MyLouvain {
                     }
                 }
                 // add node to communities bestC
-                if (dq > 0) {
+                if (dq > 0 && (MAX_COMMUNITY_SIZE < 0 || communities.get(bestC).size + node.size <= MAX_COMMUNITY_SIZE)) {
 //                    System.out.println(node.id);
 //                    System.out.println(bestC);
 //                    System.out.println(dq / num_edges);
                     flag = true;
-                    Community oldCom = communities.get(node.community);
+                    Community oldCom = communities.get(node.cid);
                     oldCom.size -= node.size;
 //                    int old = oldCom.sum_tot;
-                    if (oldCom.size == 0) communities.remove(node.community);
+                    if (oldCom.size == 0) communities.remove(node.cid);
                     else oldCom.sum_tot -= node.k_i;
                     Community newCom = communities.get(bestC);
                     // update sum_tot
                     newCom.sum_tot += node.k_i;
-                    node.community = bestC;
+                    node.cid = bestC;
                     newCom.size += node.size;
                 }
 
@@ -248,7 +444,7 @@ public class MyLouvain {
             // if the result oscillate
 
             // if network is small, use modularity to stop
-            if (nodes.size() < 2000) {
+            if (nodes.size() < 10000) {
                 double m = modularity();
                 System.out.println("Modularity: " + m);
 
@@ -281,7 +477,8 @@ public class MyLouvain {
         for (Node node : nodes) {
             node.k_i = 0;
             for (int w : node.weights) node.k_i += w;
-            communities.put(node.id, new Community(node.id, node.k_i));
+            node.k_i += node.loop;
+            communities.put(node.id, new Community(node.id, node.k_i, node.size));
         }
     }
 
@@ -294,26 +491,63 @@ public class MyLouvain {
             // read node
             System.out.println("Reading nodes...");
             String encoding = "utf8";
-            File file = new File(nodeCsv);
-            if (file.isFile() && file.exists()) {
-                InputStreamReader read = new InputStreamReader(
-                        new FileInputStream(file), encoding);
-                BufferedReader bufferedReader = new BufferedReader(read);
-                String line = null;
+            if (nodeCsv != null) {
+                File file = new File(nodeCsv);
+                if (file.isFile() && file.exists()) {
+                    InputStreamReader read = new InputStreamReader(
+                            new FileInputStream(file), encoding);
+                    BufferedReader bufferedReader = new BufferedReader(read);
+                    String line = null;
 
-                while ((line = bufferedReader.readLine()) != null) {
-                    int id = Integer.parseInt(line.split("\t")[0]);
-                    Node node = new Node(id);
-                    nodes.add(node);
-                    tmp.put(id, node);
+                    while ((line = bufferedReader.readLine()) != null) {
+                        String[] p = line.split("\t");
+                        int id = Integer.parseInt(p[0]);
+                        Node node = new Node(id);
+                        if (p.length > 1)
+                            try {
+                                node.size = Integer.parseInt(p[1]);
+                            } catch (Exception e) {
+
+                            }
+                        nodes.add(node);
+                        tmp.put(id, node);
+                    }
+                    bufferedReader.close();
+                    read.close();
                 }
-                bufferedReader.close();
-                read.close();
+            } else { // read node from edge file
+                File file = new File(edgeCsv);
+                if (file.isFile() && file.exists()) {
+                    InputStreamReader read = new InputStreamReader(
+                            new FileInputStream(file), encoding);
+                    BufferedReader bufferedReader = new BufferedReader(read);
+                    String line = null;
+
+                    while ((line = bufferedReader.readLine()) != null) {
+                        String[] p = line.split("\t");
+                        int src = Integer.parseInt(p[0]);
+                        int tar = Integer.parseInt(p[1]);
+                        if (!tmp.containsKey(src)) {
+                            Node node = new Node(src);
+                            nodes.add(node);
+                            tmp.put(src, node);
+                        }
+                        if (!tmp.containsKey(tar)) {
+                            Node node = new Node(tar);
+                            nodes.add(node);
+                            tmp.put(tar, node);
+                        }
+
+                    }
+                    bufferedReader.close();
+                    read.close();
+                }
             }
+
             // read edges
             System.out.println("Reading edges...");
             num_edges = 0;
-            file = new File(edgeCsv);
+            File file = new File(edgeCsv);
             if (file.isFile() && file.exists()) {
                 InputStreamReader read = new InputStreamReader(
                         new FileInputStream(file), encoding);
@@ -326,10 +560,15 @@ public class MyLouvain {
                     int src = Integer.parseInt(p[0]);
                     int tar = Integer.parseInt(p[1]);
                     int w = p.length > 2 ? Integer.parseInt(p[2]) : 1;
-                    tmp.get(src).neighbors.add(tmp.get(tar));
-                    tmp.get(src).weights.add(w);
-                    tmp.get(tar).neighbors.add(tmp.get(src));
-                    tmp.get(tar).weights.add(w);
+                    if (src != tar) {
+                        tmp.get(src).neighbors.add(tmp.get(tar));
+                        tmp.get(src).weights.add(w);
+                        tmp.get(tar).neighbors.add(tmp.get(src));
+                        tmp.get(tar).weights.add(w);
+                    } else { // self loop
+                        tmp.get(src).loop += w;
+                    }
+
                 }
                 bufferedReader.close();
                 read.close();
