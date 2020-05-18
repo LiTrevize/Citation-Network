@@ -58,10 +58,10 @@ public class CitationNetwork {
 
     public CitationNetwork(String nodePath, String edgePath) {
         init();
-        if (nodePath != null)
+
+        if (nodePath != null && new File(nodePath).exists())
             fromCsv(nodePath, edgePath);
-        else
-            fromCsv(edgePath);
+        else fromCsv(edgePath);
     }
 
     public CitationNetwork(File file) {
@@ -186,9 +186,10 @@ public class CitationNetwork {
         // straight line
         previewModel.getProperties().putValue(PreviewProperty.EDGE_CURVED, false);
         previewModel.getProperties().putValue(PreviewProperty.EDGE_THICKNESS, 1);
-        previewModel.getProperties().putValue(PreviewProperty.EDGE_OPACITY, 60);
-        previewModel.getProperties().putValue(PreviewProperty.NODE_OPACITY, 60);
+        previewModel.getProperties().putValue(PreviewProperty.EDGE_OPACITY, 50);
+        previewModel.getProperties().putValue(PreviewProperty.NODE_OPACITY, 50);
         previewModel.getProperties().putValue(PreviewProperty.NODE_BORDER_WIDTH, 0);
+        previewModel.getProperties().putValue(PreviewProperty.ARROW_SIZE, 0);
     }
 
     public void exportTo(String pathname) {
@@ -253,7 +254,7 @@ public class CitationNetwork {
                 String src = p[0];
                 String tar = p[1];
                 double w = 1f;
-                if (p.length > 2) w = Double.parseDouble(p[2]);
+//                if (p.length > 2) w = Double.parseDouble(p[2]);
                 Edge e = graphModel.factory().newEdge(nodeMap.get(src), nodeMap.get(tar), 0, w, true);
                 graph.addEdge(e);
             }
@@ -303,7 +304,7 @@ public class CitationNetwork {
                     String src = p[0];
                     String tar = p[1];
                     double w = 1f;
-                    if (p.length > 2) w = Double.parseDouble(p[2]);
+//                    if (p.length > 2) w = Double.parseDouble(p[2]);
                     Edge e = graphModel.factory().newEdge(nodeMap.get(src), nodeMap.get(tar), 0, w, true);
                     graph.addEdge(e);
                 }

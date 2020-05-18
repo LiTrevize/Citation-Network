@@ -24,15 +24,17 @@ public class Main {
         System.out.println("Layout " + edgePath + "...");
         CitationNetwork net = new CitationNetwork(nodePath, edgePath);
         net.showStat();
-        if (net.getNodeCount() <= 20000) {
-            net.layout_fa2(500, true, false);
-            if (isMega) net.rankSizeBy("size", 1, 10000);
-            net.layout_fa2(1500, true, true);
-            // net.setPreview();
-            // net.exportTo(outPath);
+        if (net.getNodeCount() <= 50000) {
+            net.layout_fa2((net.getNodeCount() / 10000 + 1) * 1000, true, false);
+            if (isMega) net.rankSizeBy("size", 5, 500);
+            else net.rankSizeBy("degree", 1, 1000);
+            net.layout_fa2((net.getNodeCount() / 10000 + 1) * 1000, true, true);
             net.exportXYR(outPath, isMega);
+
+//            net.setPreview();
+//            net.exportTo("testtest.png");
         } else { // recursively partition and layout
-            partition(null, edgePath, subDir);
+            partition(nodePath, edgePath, subDir);
             layoutCommunity(subDir);
             // layout mega graph
             layout(subDir + "/mega_graph/mega_node.csv", subDir + "/mega_graph/mega_edge.csv",
@@ -52,7 +54,8 @@ public class Main {
                 System.out.print("\rdeleting " + file.getName());
                 file.delete();
             } else {
-                layout(null, comDir.getPath() + "/" + fileName, baseDir + "/layout/" + file.getName(),
+                layout(baseDir + "/community_node/" + fileName, comDir.getPath() + "/" + fileName,
+                        baseDir + "/layout/" + file.getName(),
                         baseDir + "/" + file.getName().substring(0, file.getName().indexOf(".")), false);
             }
         }
@@ -164,49 +167,41 @@ public class Main {
         }
     }
 
+    public static void layoutDBLP() {
+//        partition("data/node_dblp_only.csv", "data/edge_dblp_only.csv", "data/dblp");
+        layoutCommunity("data/dblp");
+        layout("data/dblp/mega_graph/mega_node.csv", "data/dblp/mega_graph/mega_edge.csv",
+                "data/dblp/mega_graph/layout.csv", "data/dblp/mega_sub", true);
+        merge("data/dblp/layout", "data/dblp/mega_graph/layout.csv", "data/dblp/layout.csv");
 
-    public static void main(String[] args) {
-//        String pathname = "../material/LesMiserables.gexf";
-//        layout("data/dblp/community/108979965.csv", "test0.png");
+    }
 
+    public static void testLayout(String nodePath, String edgePath, String outPath, String subDir, boolean isMega) {
+        System.out.println("Layout " + edgePath + "...");
+        CitationNetwork net = new CitationNetwork(nodePath, edgePath);
+        net.showStat();
 
-        File dir = new File("data/dblp0/community");
-        File[] files = dir.listFiles();
-        for (File file : files) {
-            if (file.length() == 0) {
-                System.out.print("\rdeleting " + file.getName());
-                file.delete();
-            }
+        if (isMega) net.rankSizeBy("size", 3, 300);
+        else net.rankSizeBy("degree", 1, 10000);
+
+        net.setPreview();
+
+        for (int i = 0; i < 3; i++) {
+            net.layout_fa2(1000, true, false);
+            net.exportTo("testtest-" + i + ".png");
         }
 
-//        layoutCommunity("data/dblp");
-
-//        partition();
-
-//        460513896
-//        MyLouvain lou = new MyLouvain(612761,
-//                null,
-//                "data/dblp0/community/89294878.csv");
-//        MyLouvain lou = new MyLouvain(null, "data/dblp0/community/108979965.csv");
-//        lou.execute();
-//        String outDir = "data/subgraph";
-//        lou.partitionAndSaveTo(outDir + "/community");
-//        lou.saveMegaGraph(outDir + "/mega_graph");
-
-//        lou.saveCommunityExternalEdges(outDir + "/external");
+        for (int i = 0; i < 3; i++) {
+            net.layout_fa2(1000, true, true);
+            net.exportTo("testtest-3-" + i + ".png");
+        }
+    }
 
 
-//        CitationNetwork net = new CitationNetwork("data/dblp0/community/460513896.csv");
-//        CitationNetwork net = new CitationNetwork("../material/LesMiserables.gexf");
-
-        partition("data/node_dblp_only.csv", "data/edge_dblp_only.csv", "data/dblp");
-//        layoutCommunity("data/dblp");
-//        layout("data/dblp/mega_graph/mega_node.csv", "data/dblp/mega_graph/mega_edge.csv",
-//                "data/dblp/mega_graph/layout.csv", "data/dblp/mega_sub", true);
-//        merge("data/dblp/layout", "data/dblp/mega_graph/layout.csv", "data/dblp/layout.csv");
-
-//        layout(null, "data/test/108979965.csv", "data/test/layout.csv",
-//                "data/test/108979965", false);
-
+    public static void main(String[] args) {
+        layoutDBLP();
+//        testLayout(null, "data/subgraph/test.csv",
+//                "data/subgraph/layout.csv",
+//                "data/subgraph/sub", false);
     }
 }
