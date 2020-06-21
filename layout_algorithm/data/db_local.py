@@ -47,14 +47,15 @@ def add_layout():
     total = count_lines("dblp/layout.csv")
     with open("dblp/layout.csv", "r") as f:
         for i, line in enumerate(f):
-            nid, x, y, cid = line.strip().split('\t')
+            nid, x, y, r, cid = line.strip().split('\t')
             newvalues = {
-                '$set': {'x': float(x), 'y': float(y), 'cid': int(cid)}
+                '$set': {'x': float(x), 'y': float(y), 'r': float(r), 'cid': int(cid)}
             }
             db_node.update_one({'_id': int(nid)}, newvalues)
 
             if i % 10000 == 0:
                 print('\r{:.4f}\t'.format(1.*i/total), end='')
+                # 0.3459
         print()
 
 
@@ -72,9 +73,50 @@ def getMaxMin():
         ymin = min(y, ymin)
         ymax = max(y, ymax)
     print(xmin, xmax, ymin, ymax)
+    print(xmin, ymin, xmax-xmin, ymax-ymin)
+
+
+def add_all():
+    nodes = defaultdict(dict)
+    total = count_lines('node_dblp_only.csv')
+    with open('node_dblp_only.csv', 'r', encoding='utf8') as f:
+        for i, line in enumerate(f):
+            nid, title = line.strip().split('\t')
+            nodes[int(nid)].update({'_id': int(nid), 'title': title,'citedBy':[]})
+            # db_node.insert_many(nodes)
+        # print()
+
+    # edges = defaultdict(list)
+    total = count_lines('edge_dblp_only.csv')
+    with open('edge_dblp_only.csv', 'r') as f:
+        for i, line in enumerate(f):
+            src, tar = line.strip().split('\t')
+            nodes[int(src)]['citedBy'].append(int(tar))
+
+            if i and i % 10000 == 0:
+                print('\r{:.4f}\t'.format(1.*i/total), end='')
+        print()
+
+    total = count_lines("dblp/layout.csv")
+    tmp = []
+    with open("dblp/layout.csv", "r") as f:
+        for i, line in enumerate(f):
+            nid, x, y, r, cid = line.strip().split('\t')
+            dic = nodes[int(nid)]
+            dic.update({'x': float(x), 'y': float(y), 'r': float(r), 'cid': int(cid),'citation':len(dic['citedBy'])})
+            tmp.append(dic)
+
+            if i % 10000 == 0:
+                print('\r{:.4f}\t'.format(1.*i/total), end='')
+                db_node.insert_many(tmp)
+                tmp.clear()
+                # 0.3459
+        print()
 
 
 if __name__ == "__main__":
+    # db_node.rename('node0')
     # add_basic()
     # add_layout()
-    getMaxMin()
+    # getMaxMin()
+    add_all()

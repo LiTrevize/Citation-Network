@@ -69,7 +69,7 @@ public class CitationNetwork {
         loadFile(file);
     }
 
-    public void exportXYR(String filePath, boolean exportR) {
+    public void exportXYR(String filePath) {
         try {
             System.out.println("Writing to " + filePath + " ...");
             File file = new File(filePath);
@@ -81,20 +81,18 @@ public class CitationNetwork {
             for (Node node : graph.getNodes().toArray()) {
                 float x = node.x();
                 float y = node.y();
-                if (!exportR)
-                    out.write(node.getId().toString() + "\t" + x + "\t" + y + "\n");
-                else {
-                    float size = 0;
-                    if ((int) node.getAttribute(sizeCol) > 1) size = node.size();
-                    out.write(node.getId().toString() + "\t" + x + "\t" + y + "\t" + size + "\n");
-                }
+//                float size = 0;
+//                if ((int) node.getAttribute(sizeCol) > 1) size = node.size();
+                out.write(node.getId().toString() + "\t" + x + "\t" + y + "\t" + node.size() + "\n");
             }
+
 
             out.flush();
             out.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
+        System.out.println(filePath + " finished.");
     }
 
     public void getXY() {
@@ -113,7 +111,7 @@ public class CitationNetwork {
     }
 
     public void layout_fa2(int num_iter, boolean linLog, boolean adjustSize) {
-        System.out.println("Layout...");
+        System.out.println("Layout " + getNodeCount() + "...");
         ForceAtlas2 fa2 = new ForceAtlas2(null);
         fa2.setGraphModel(graphModel);
         fa2.setAdjustSizes(adjustSize);
@@ -122,12 +120,12 @@ public class CitationNetwork {
             fa2.setScalingRatio(0.2);
         } else {
             fa2.setLinLogMode(false);
-            fa2.setScalingRatio(50d);
+            fa2.setScalingRatio(1d);
         }
 
         fa2.initAlgo();
         for (int i = 0; i < num_iter && fa2.canAlgo(); i++) {
-            System.out.print("\r" + i);
+//            System.out.print("\r" + i);
             fa2.goAlgo();
         }
         fa2.endAlgo();
@@ -235,16 +233,20 @@ public class CitationNetwork {
             while ((line = bufferedReader.readLine()) != null) {
                 String[] p = line.split("\t");
                 String nid = p[0];
-                int size = Integer.parseInt(p[1]);
+                float size = Float.parseFloat(p[1]);
                 if (!nodeMap.containsKey(nid)) {
                     Node n1 = graphModel.factory().newNode(nid);
                     // add size attribute
-                    n1.setAttribute(sizeCol, size);
+                    if (size < 10)
+                        n1.setSize(size);
+                    else
+                        n1.setSize(size / 500);
 
                     nodeMap.put(nid, n1);
                 }
             }
             graph.addAllNodes(nodeMap.values());
+//            rankSizeBy("size", 5, 500);
 
             // load edge
             read = new InputStreamReader(new FileInputStream(edgeFile), "utf8");
@@ -276,6 +278,7 @@ public class CitationNetwork {
         InputStreamReader read;
         BufferedReader bufferedReader;
         Map<String, Node> nodeMap = new HashMap<>();
+        Map<String, Integer> degree = new HashMap<>();
         try {
             if (edgeFile.isFile() && edgeFile.exists()) {
                 read = new InputStreamReader(new FileInputStream(edgeFile), "utf8");
@@ -297,6 +300,7 @@ public class CitationNetwork {
                     }
                 }
                 graph.addAllNodes(nodeMap.values());
+//                rankSizeBy("degree", 5, 500);
 
                 bufferedReader.reset();
                 while ((line = bufferedReader.readLine()) != null) {
@@ -307,10 +311,16 @@ public class CitationNetwork {
 //                    if (p.length > 2) w = Double.parseDouble(p[2]);
                     Edge e = graphModel.factory().newEdge(nodeMap.get(src), nodeMap.get(tar), 0, w, true);
                     graph.addEdge(e);
+
+                    degree.put(src, degree.getOrDefault(src, 0) + 1);
                 }
 
                 bufferedReader.close();
                 read.close();
+            }
+
+            for (Node node : graph.getNodes().toArray()) {
+                node.setSize(degree.getOrDefault((String) node.getId(), 0) + 1);
             }
 
 

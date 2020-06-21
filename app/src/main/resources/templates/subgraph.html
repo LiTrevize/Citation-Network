@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<!--<h1>Hello</h1>-->
+<!--<p th:each="n: ${name}">-->
+<!--    <span th:text="${n}">a</span>-->
+<!--</p>-->
+
+
+<script>
+
+</script>
+
+<!--<span th:text="${num}"></span>-->
+<!--<span> Nodes with citation greater than </span>-->
+<!--<input th:value="${cite}" style="width:60px;">-->
+<!--<br>-->
+<span>Focused Paper:</span>
+<input id="id_title" style="width:500px;" readonly="readonly">
+
+<!--<embed id="limit-svg" type="image/svg+xml"-->
+<!--       style="width:100%;height:500px">-->
+<div style="width:200%; height=100%">
+    <?xml version="1.0" encoding="UTF-8"?>
+    <svg xmlns="http://www.w3.org/2000/svg" version="1.1"
+         th:viewBox="${view}" width="100%" height="100%">
+        <!--        <g id="edges" th:each="n: ${nodes}">-->
+        <!--            <g th:each="n1: ${n.citedBy}">-->
+        <!--                <line th:x1="${n.x}" th:x2="${n1.x}" th:y1="${n.y}" th:y2="${n1.y}" stroke="black" stroke-width="0.1"-->
+        <!--                      stroke-opacity="0.1"/>-->
+        <!--            </g>-->
+
+        <!--        </g>-->
+        <g id="nodes" th:each="n: ${nodes}">
+            <circle th:cx="${n.x}" th:cy="${n.y}" th:id="${n.title}" th:r="${n.r}" th:label="${n.title}"
+                    onclick="sub(event)" onmouseover="show_title(event)" fill="black" fill-opacity="0.5"/>
+        </g>
+    </svg>
+</div>
+
+
+<script>
+    sub = function(event){
+        var nid = event.srcElement.id;
+        alert(nid);
+        window.open('subgraph?nid='+nid, 'new');
+    };
+
+    var title = document.getElementById('id_title');
+
+    show_title = function(event){
+<!--        alert("hello");-->
+        title.value=event.srcElement.id;
+    };
+
+    title.text="test";
+    $('#title_span').val('test');
+
+</script>
+
+<script src="/js/jquery-3.5.1.min.js"></script>
+
+</body>
+</html>

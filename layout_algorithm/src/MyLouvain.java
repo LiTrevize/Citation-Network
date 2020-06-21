@@ -464,7 +464,7 @@ public class MyLouvain {
                     oldCom.size -= 1;
                     oldCom.size_default -= node.size;
 //                    int old = oldCom.sum_tot;
-                    if (oldCom.size == 0) communities.remove(node.cid);
+                    if (oldCom.size == 0 || oldCom.size_default == 0) communities.remove(node.cid);
                     else oldCom.sum_tot -= node.k_i;
                     Community newCom = communities.get(bestC);
                     // update sum_tot

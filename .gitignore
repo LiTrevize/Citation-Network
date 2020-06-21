@@ -1,11 +1,16 @@
-.idea/
-out/
+*.mvn/
+*.vscode/
+*/resources/resources/*
+*dblp/
+*.idea/
+*out/
 *__pycache__/
 *.pkl
 *.csv
 *.gexf
-data/info.py
+layout_algorithm/data/info.py
 *test.py
+*js/
 
 # Compiled class file
 *.class
